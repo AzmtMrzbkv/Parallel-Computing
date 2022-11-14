@@ -4,6 +4,7 @@
 #include <vector>
 #include <stdlib.h>
 #include <cmath>
+#include <iomanip>
 
 // extern void srand48(long int);
 extern double drand48(void);
@@ -34,6 +35,19 @@ std::vector<std::vector<double>> matrix_getrn(int n)
   return res;
 }
 
+void matrix_print(std::vector<std::vector<double>> &A)
+{
+  int n = A.size(), m = A[0].size();
+
+  std::cout << std::setprecision(5) << std::fixed;
+  for (int i = 0; i < n; i++)
+  {
+    for (int j = 0; j < m - 1; j++)
+      std::cout << A[i][j] << ' ';
+    std::cout << A[i][m - 1] << '\n';
+  }
+}
+
 void matrix_LU(std::vector<std::vector<double>> &a, std::vector<int> &pi, std::vector<std::vector<double>> &L, std::vector<std::vector<double>> &U)
 {
   int n = a.size();
@@ -50,40 +64,41 @@ void matrix_LU(std::vector<std::vector<double>> &a, std::vector<int> &pi, std::v
   }
 
   // decomposition
-  double k, maxN;
-  for (int i = 0; i < n; i++)
-  {
-    maxN = 0, k = 0;
-    for (int j = i; j < n; j++)
-    {
-      if (maxN < std::abs(a[j][i]))
-      {
-        maxN = std::abs(a[j][i]);
-        k = j;
-      }
-    }
+  double max;
+  int j;
 
-    if (maxN == 0)
+  for (int k = 0; k < n; k++)
+  {
+    max = 0;
+    j = k;
+
+    for (int i = k; i < n; i++)
+      if (max < std::abs(a[i][k]))
+      {
+        max = std::abs(a[i][k]);
+        j = i;
+      }
+
+    if (max == 0)
       std::cerr << "ERROR\n";
 
-    std::swap(pi[i], pi[k]);
-    std::swap(a[i], a[k]);
+    std::swap(pi[k], pi[j]);
+    std::swap(a[k], a[j]);
 
-    std::swap(L[i], L[k]);
-    std::swap(L[i][0], L[k][0]);
+    for (int z = 0; z < k; z++)
+      std::swap(L[k][z], L[j][z]);
 
-    U[i][i] = a[i][i];
+    U[k][k] = a[k][k];
 
-    for (int j = i + 1; j < n; j++)
+    for (int i = k + 1; i < n; i++)
     {
-      L[j][i] = a[j][i] / U[i][i];
-      U[i][j] = a[i][j];
+      L[i][k] = a[i][k] / U[k][k];
+      U[k][i] = a[k][i];
     }
-    for (int j = i + 1; j < n; j++)
-    {
-      for (int z = i + 1; z < n; z++)
-        a[j][z] -= L[j][i] * U[i][z];
-    }
+
+    for (int i = k + 1; i < n; i++)
+      for (int z = k + 1; z < n; z++)
+        a[i][z] -= L[i][k] * U[k][z];
   }
 }
 
@@ -99,13 +114,9 @@ std::vector<std::vector<double>> matrix_mult(std::vector<std::vector<double>> &A
 
   std::vector<std::vector<double>> res(n, std::vector<double>(m, 0));
   for (int i = 0; i < n; i++)
-  {
     for (int j = 0; j < m; j++)
-    {
       for (int k = 0; k < p; k++)
         res[i][j] += A[i][k] * B[k][j];
-    }
-  }
 
   return res;
 }
@@ -172,17 +183,27 @@ int main(int argc, char **argv)
 #pragma omp single
     {
       std::vector<std::vector<double>> A = matrix_getrn(matrix_size);
+      // std::cout << "printing A\n";
+      // matrix_print(A);
 
       std::vector<int> pi;
       std::vector<std::vector<double>> L, U;
       matrix_LU(A, pi, L, U); // after this pi, L, U are pointing to the result of LU decomposition
+      // std::cout << "printing L\n";
+      // matrix_print(L);
+      // std::cout << "printing U\n";
+      // matrix_print(U);
 
       std::vector<std::vector<double>> P(matrix_size, std::vector<double>(matrix_size, 0));
       for (int i = 0; i < matrix_size; i++)
         P[i][pi[i]] = 1;
 
       auto PA = matrix_mult(P, A), LU = matrix_mult(L, U);
+      // std::cout << "printing LU\n";
+      // matrix_print(LU);
       auto R = matrix_sub(PA, LU);
+      // std::cout << "printing PA\n";
+      // matrix_print(PA);
       std::cout << "L2,1: " << matrix_L21(R) << '\n';
     }
   }
