@@ -121,18 +121,17 @@ double matrix_L21(std::vector<std::vector<double>> &A)
 void matrix_LU(std::vector<std::vector<double>> a, std::vector<int> &pi, std::vector<std::vector<double>> &L, std::vector<std::vector<double>> &U)
 {
   int n = a.size(), j;
-  double jmax;
+  double jmax, jt;
 
 // initialization
 #pragma omp parallel shared(pi, L, n) default(none)
   {
 #pragma omp for nowait schedule(static)
     for (int i = 0; i < n; i++)
+    {
       pi[i] = i;
-
-#pragma omp for nowait schedule(static)
-    for (int i = 0; i < n; i++)
       L[i][i] = 1.0;
+    }
   }
 
   for (int k = 0; k < n; k++)
@@ -141,9 +140,9 @@ void matrix_LU(std::vector<std::vector<double>> a, std::vector<int> &pi, std::ve
     j = k;
 
     for (int i = k; i < n; i++)
-      if (jmax < std::fabs(a[i][k]))
+      if ((jt = std::fabs(a[i][k])) > jmax)
       {
-        jmax = std::fabs(a[i][k]);
+        jmax = jt;
         j = i;
       }
 
@@ -172,7 +171,7 @@ void matrix_LU(std::vector<std::vector<double>> a, std::vector<int> &pi, std::ve
       for (int i = k + 1; i < n; i++)
         U[k][i] = a[k][i];
 
-#pragma omp for collapse(2) schedule(static)
+#pragma omp for nowait collapse(2) schedule(static)
       for (int i = k + 1; i < n; i++)
         for (int z = k + 1; z < n; z++)
           a[i][z] -= L[i][k] * U[k][z];
