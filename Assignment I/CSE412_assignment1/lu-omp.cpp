@@ -228,7 +228,7 @@ int main(int argc, char **argv)
   auto start_time = std::chrono::high_resolution_clock::now();
   matrix_LU(AA, pi, L, U, matrix_size);
   auto end_time = std::chrono::high_resolution_clock::now();
-  std::cout << std::chrono::duration_cast<std::chrono::nanoseconds>(end_time - start_time).count() << std::endl;
+  std::cout << std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count() << " ms" << std::endl;
 
   double **P = new double *[matrix_size];
   for (int i = 0; i < matrix_size; i++)
