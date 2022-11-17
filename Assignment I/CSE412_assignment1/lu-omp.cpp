@@ -1,7 +1,7 @@
 #include <iostream>
 #include <omp.h>
 
-#include <vector>
+// #include <vector>
 #include <stdlib.h>
 #include <cmath>
 #include <iomanip>
@@ -12,12 +12,12 @@
 // extern void srand48(long int);
 extern double drand48(void);
 
-std::vector<std::vector<double>> matrix_getrn(int n);
-void matrix_print(std::vector<std::vector<double>> &A);
-void matrix_LU(std::vector<std::vector<double>> a, std::vector<int> &pi, std::vector<std::vector<double>> &L, std::vector<std::vector<double>> &U);
-std::vector<std::vector<double>> matrix_mult(std::vector<std::vector<double>> &A, std::vector<std::vector<double>> &B);
-std::vector<std::vector<double>> matrix_sub(std::vector<std::vector<double>> &A, std::vector<std::vector<double>> &B);
-double matrix_L21(std::vector<std::vector<double>> &A);
+double **matrix_getrn(int n);
+void matrix_print(double **A, int n);
+void matrix_LU(double **a, int *pi, double **L, double **U, int n);
+double **matrix_mult(double **A, double **B, int n);
+double **matrix_sub(double **A, double **B, int n);
+double matrix_L21(double **A, int n);
 
 ////////////////////////////////////////////
 
@@ -29,9 +29,11 @@ void usage(const char *name)
   exit(-1);
 }
 
-std::vector<std::vector<double>> matrix_getrn(int n)
+double **matrix_getrn(int n)
 {
-  std::vector<std::vector<double>> res(n, std::vector<double>(n));
+  double **res = new double *[n];
+  for (int i = 0; i < n; i++)
+    res[i] = new double[n];
 
   // fill the array with random numbers in interval [0.0, 1.0]
   // srand48(0);
@@ -45,68 +47,51 @@ std::vector<std::vector<double>> matrix_getrn(int n)
   return res;
 }
 
-void matrix_print(std::vector<std::vector<double>> &A)
+void matrix_print(double **A, int n)
 {
-  int n = A.size(), m = A[0].size();
-
   std::cout << std::setw(12) << std::setprecision(9) << std::fixed;
   for (int i = 0; i < n; i++)
   {
-    for (int j = 0; j < m - 1; j++)
+    for (int j = 0; j < n - 1; j++)
       std::cout << A[i][j] << ' ';
-    std::cout << A[i][m - 1] << '\n';
+    std::cout << A[i][n - 1] << '\n';
   }
 }
 
 // multiply to matrices
-std::vector<std::vector<double>> matrix_mult(std::vector<std::vector<double>> &A, std::vector<std::vector<double>> &B)
+double **matrix_mult(double **A, double **B, int n)
 {
-  int p = A[0].size(), p1 = B.size();
-  if (p != p1)
-  {
-    std::cerr << "ERROR: cannot multiply these matrices\n";
-    exit(-1);
-  }
-
-  // find result matrix size n x m
-  int n = A.size(), m = B[0].size();
-
-  std::vector<std::vector<double>> res(n, std::vector<double>(m, 0));
+  double **res = new double *[n];
   for (int i = 0; i < n; i++)
-    for (int j = 0; j < m; j++)
-      for (int k = 0; k < p; k++)
+    res[i] = new double[n]{};
+
+  for (int i = 0; i < n; i++)
+    for (int j = 0; j < n; j++)
+      for (int k = 0; k < n; k++)
         res[i][j] += A[i][k] * B[k][j];
 
   return res;
 }
 
 // subtraction of matrices
-std::vector<std::vector<double>> matrix_sub(std::vector<std::vector<double>> &A, std::vector<std::vector<double>> &B)
+double **matrix_sub(double **A, double **B, int n)
 {
-  int n1 = A.size(), m1 = A[0].size();
-  int n2 = B.size(), m2 = B[0].size();
+  double **res = new double *[n];
+  for (int i = 0; i < n; i++)
+    res[i] = new double[n]{};
 
-  if (n1 != n2 || m1 != m2)
-  {
-    std::cerr << "ERROR: cannot subtract these matrices\n";
-    exit(-1);
-  }
-
-  std::vector<std::vector<double>> res(n1, std::vector<double>(m1));
-  for (int i = 0; i < n1; i++)
-    for (int j = 0; j < m1; j++)
+  for (int i = 0; i < n; i++)
+    for (int j = 0; j < n; j++)
       res[i][j] = A[i][j] - B[i][j];
 
   return res;
 }
 
 // compute L2,1 norm of a given matrix
-double matrix_L21(std::vector<std::vector<double>> &A)
+double matrix_L21(double **A, int n)
 {
   double L21 = 0, L21j;
-
-  int n = A.size(), m = A[0].size();
-  for (int i = 0; i < m; i++)
+  for (int i = 0; i < n; i++)
   {
     L21j = 0;
     for (int j = 0; j < n; j++)
@@ -118,9 +103,9 @@ double matrix_L21(std::vector<std::vector<double>> &A)
 }
 
 // pass a by value to keep original matrix and fill pi, l, u
-void matrix_LU(std::vector<std::vector<double>> a, std::vector<int> &pi, std::vector<std::vector<double>> &L, std::vector<std::vector<double>> &U)
+void matrix_LU(double **a, int *pi, double **L, double **U, int n)
 {
-  int n = a.size(), j;
+  int j;
   double jmax, jt;
 
 // initialization
@@ -198,10 +183,15 @@ int main(int argc, char **argv)
   omp_set_num_threads(nworkers);
 
   // initialize vectors in serial
-  std::vector<std::vector<double>> A = matrix_getrn(matrix_size);
-  std::vector<int> pi(matrix_size);
-  std::vector<std::vector<double>> L(matrix_size, std::vector<double>(matrix_size, 0));
-  std::vector<std::vector<double>> U(matrix_size, std::vector<double>(matrix_size, 0));
+  double **A = matrix_getrn(matrix_size);
+  int *pi = new int[matrix_size];
+  double **L = new double *[matrix_size];
+  double **U = new double *[matrix_size];
+  for (int i = 0; i < matrix_size; i++)
+  {
+    L[i] = new double[matrix_size]{};
+    U[i] = new double[matrix_size]{};
+  }
 
   // #pragma omp parallel
   // {
@@ -211,16 +201,21 @@ int main(int argc, char **argv)
   //             << omp_get_thread_num() << std::endl;
   // }
   auto start_time = clock();
-  matrix_LU(A, pi, L, U);
+  matrix_LU(A, pi, L, U, matrix_size);
   std::cout << (clock() - start_time) << std::endl;
 
-  std::vector<std::vector<double>> P(matrix_size, std::vector<double>(matrix_size, 0));
+  double **P = new double *[matrix_size];
+  for (int i = 0; i < matrix_size; i++)
+    P[i] = new double[matrix_size]{};
+
   for (int i = 0; i < matrix_size; i++)
     P[i][pi[i]] = 1;
 
-  auto PA = matrix_mult(P, A), LU = matrix_mult(L, U);
-  auto R = matrix_sub(PA, LU);
-  std::cout << "L2,1: " << matrix_L21(R) << '\n';
+  auto PA = matrix_mult(P, A, matrix_size), LU = matrix_mult(L, U, matrix_size);
+  auto R = matrix_sub(PA, LU, matrix_size);
+  std::cout << "L2,1: " << matrix_L21(R, matrix_size) << '\n';
+
+  // matrix_free();
 
   return 0;
 }
