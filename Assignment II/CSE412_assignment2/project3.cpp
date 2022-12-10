@@ -4,23 +4,38 @@
 
 int main(int argc, char *argv[])
 {
-    // start MPI
     int npes, myrank;
-    char **grid;
+    char **localGrid; // 1-D decomposition
 
+    // initialize MPI
     MPI_Init(&argc, &argv);
     MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
     MPI_Comm_size(MPI_COMM_WORLD, &npes);
 
+    // read the dimensions of the grids
     int m, n, g;
     scanf("%d %d %d", &m, &n, &g);
 
-    grid = new char *[m];
+    // allocate localGrid and every process reads its local grid
+    int k = m / npes + 1;
+    localGrid = new char *[k];
     for (int i = 0; i < m; i++)
+        if (i / npes == myrank)
+        {
+            localGrid[i] = new char[m];
+            scanf("%s", localGrid[i]);
+        }
+
+    // loop game of life
+    while (N--)
     {
-        grid[i] = new char[m];
-        scanf("%s", grid[i]);
+        // TODO update localGrid and send info to other cells
     }
+
+    // deallocate localGrid
+    for (int i = 0; i < localGridSize; i++)
+        delete[] grid[i];
+    delete[] grid;
 
     MPI_Finalize();
 }
