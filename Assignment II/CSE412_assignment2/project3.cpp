@@ -82,13 +82,13 @@ int main(int argc, char *argv[])
 
     for (int t = 0; t < n; t++)
     {
-        // send to upper neighbor
+        // send to lower neighbor
         if (myrank != 0)
             MPI_Send(localGrid[1], m, MPI_CHAR, myrank - 1, 0, MPI_COMM_WORLD);
         if (myrank != npes - 1)
             MPI_Recv(localGrid[k + 1], m, MPI_CHAR, myrank + 1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
-        // send to lower neighbor
+        // send to higher neighbor
         if (myrank != npes - 1)
             MPI_Send(localGrid[k], m, MPI_CHAR, myrank + 1, 0, MPI_COMM_WORLD);
         if (myrank != 0)
@@ -108,7 +108,7 @@ int main(int argc, char *argv[])
                 if (j < m - 1 && localGrid[i][j + 1] == '#')
                     neighbors++;
 
-                // upper
+                // check upper neighbors
                 if (myrank != 0 || i > 1)
                 {
                     if (i > 0 && localGrid[i - 1][j] == '#')
@@ -119,18 +119,18 @@ int main(int argc, char *argv[])
                         neighbors++;
                 }
 
-                // lower
+                // check lower neighbors
                 if (myrank != npes - 1 || i < m % k)
                 {
-                    if (i < k - 1 && localGrid[i + 1][j] == '#')
+                    if (i <= k && localGrid[i + 1][j] == '#')
                         neighbors++;
-                    if (i < k - 1 && j > 0 && localGrid[i + 1][j - 1] == '#')
+                    if (i <= k && j > 0 && localGrid[i + 1][j - 1] == '#')
                         neighbors++;
-                    if (i < k - 1 && j < m - 1 && localGrid[i + 1][j + 1] == '#')
+                    if (i <= k && j < m - 1 && localGrid[i + 1][j + 1] == '#')
                         neighbors++;
                 }
 
-                // identify next state of cell
+                // identify the next state of cell
                 if (localGrid[i][j] == '#')
                 {
                     if (neighbors < 2 || neighbors > 3)
@@ -156,7 +156,6 @@ int main(int argc, char *argv[])
             for (int j = 0; j < m; j++)
                 localGrid[i][j] = newlocalGrid[i][j];
         }
-
         // MPI_Barrier(MPI_COMM_WORLD);
     }
 
