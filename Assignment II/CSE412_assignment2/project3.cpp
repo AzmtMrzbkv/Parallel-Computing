@@ -4,15 +4,16 @@
 
 char **alloc2D(int m, int n)
 {
-    char **arr = new char *[m];
-    for (int i = 0; i < m; i++)
+    // create additional 2 rows for communication
+    char **arr = new char *[m + 2];
+    for (int i = 0; i < m + 2; i++)
         arr[i] = new char[n];
     return arr;
 }
 
 void free2D(char **arr, int m)
 {
-    for (int i = 0; i < m; i++)
+    for (int i = 0; i < m + 2; i++)
         delete[] arr[i];
     delete[] arr;
 }
@@ -48,10 +49,6 @@ int main(int argc, char *argv[])
 
     // allocate memory for local grid
     int k = m / npes + 1;
-    if (myrank == npes - 1)
-        // last process gets the remaining rows
-        k = m % k;
-
     localGrid = alloc2D(k, m);
 
     if (myrank == 0)
@@ -61,7 +58,7 @@ int main(int argc, char *argv[])
         for (int i = 0; i < m; i++)
         {
             if (i / k == 0)
-                scanf("%s", localGrid[i]);
+                scanf("%s", localGrid[i + 1]);
             else
             {
                 scanf("%s", str);
@@ -72,67 +69,122 @@ int main(int argc, char *argv[])
     else
     {
         // receive initial grid
-        for (int i = 0; i < k; i++)
-            MPI_Recv(localGrid[i], m, MPI_CHAR, 0, i, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        if (myrank != npes - 1)
+            for (int i = 0; i < k; i++)
+                MPI_Recv(localGrid[i + 1], m, MPI_CHAR, 0, i, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        else
+            for (int i = 0; i < m % k; i++)
+                MPI_Recv(localGrid[i + 1], m, MPI_CHAR, 0, i, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
     }
 
     // loop game of life
     char **newlocalGrid = alloc2D(k, m);
 
-    // while (n--)
-    // {
-    //     // TODO update localGrid and send info to other cells
-    //     for (int i = 0; i < m; i++)
-    //     {
-    //         for (int j = 0; j < k; j++)
-    //         {
+    for (int t = 0; t < n; t++)
+    {
+        // send to upper neighbor
+        if (myrank != 0)
+            MPI_Send(localGrid[1], m, MPI_CHAR, myrank - 1, 0, MPI_COMM_WORLD);
+        if (myrank != npes - 1)
+            MPI_Recv(localGrid[k + 1], m, MPI_CHAR, myrank + 1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
-    //             // count neighbors
-    //             int neighbors = 0;
-    //             if (i > 0 && localGrid[i - 1][j] == '#')
-    //                 neighbors++;
-    //             if (i < k - 1 && localGrid[i + 1][j] == '#')
-    //                 neighbors++;
-    //             if (j > 0 && localGrid[i][j - 1] == '#')
-    //                 neighbors++;
-    //             if (j < m - 1 && localGrid[i][j + 1] == '#')
-    //                 neighbors++;
+        // send to lower neighbor
+        if (myrank != npes - 1)
+            MPI_Send(localGrid[k], m, MPI_CHAR, myrank + 1, 0, MPI_COMM_WORLD);
+        if (myrank != 0)
+            MPI_Recv(localGrid[0], m, MPI_CHAR, myrank - 1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
-    //             if (i > 0 && j > 0 && localGrid[i - 1][j - 1] == '#')
-    //                 neighbors++;
-    //             if (i > 0 && j < m - 1 && localGrid[i - 1][j + 1] == '#')
-    //                 neighbors++;
-    //             if (i < k - 1 && j > 0 && localGrid[i + 1][j - 1] == '#')
-    //                 neighbors++;
-    //             if (i < k - 1 && j < m - 1 && localGrid[i + 1][j + 1] == '#')
-    //                 neighbors++;
+        for (int i = 1; i <= k; i++)
+        {
+            if (myrank == npes - 1 && i > m % k)
+                break;
+            for (int j = 0; j < m; j++)
+            {
+                // count neighbors
+                int neighbors = 0;
+                // left right
+                if (j > 0 && localGrid[i][j - 1] == '#')
+                    neighbors++;
+                if (j < m - 1 && localGrid[i][j + 1] == '#')
+                    neighbors++;
 
-    //             // identify next state of cell
-    //             if (neighbors < 2)
-    //                 newlocalGrid[i][j] = '.';
-    //             else if (neighbors == 3)
-    //                 newlocalGrid[i][j] = '#';
-    //             else if (neighbors > 3)
-    //                 newlocalGrid[i][j] = '.';
-    //             else
-    //                 newlocalGrid[i][j] = localGrid[i][j];
-    //         }
+                // upper
+                if (myrank != 0 || i > 1)
+                {
+                    if (i > 0 && localGrid[i - 1][j] == '#')
+                        neighbors++;
+                    if (i > 0 && j > 0 && localGrid[i - 1][j - 1] == '#')
+                        neighbors++;
+                    if (i > 0 && j < m - 1 && localGrid[i - 1][j + 1] == '#')
+                        neighbors++;
+                }
 
-    //         // update localGrid
-    //         for (int i = 0; i < k; i++)
-    //             for (int j = 0; j < m; j++)
-    //                 localGrid[i][j] = newlocalGrid[i][j];
-    //     }
-    // }
+                // lower
+                if (myrank != npes - 1 || i < m % k)
+                {
+                    if (i < k - 1 && localGrid[i + 1][j] == '#')
+                        neighbors++;
+                    if (i < k - 1 && j > 0 && localGrid[i + 1][j - 1] == '#')
+                        neighbors++;
+                    if (i < k - 1 && j < m - 1 && localGrid[i + 1][j + 1] == '#')
+                        neighbors++;
+                }
 
-    // master process prints the final state
+                // identify next state of cell
+                if (localGrid[i][j] == '#')
+                {
+                    if (neighbors < 2 || neighbors > 3)
+                        newlocalGrid[i][j] = '.';
+                    else
+                        newlocalGrid[i][j] = '#';
+                }
+                else
+                {
+                    if (neighbors == 3)
+                        newlocalGrid[i][j] = '#';
+                    else
+                        newlocalGrid[i][j] = '.';
+                }
+            }
+        }
+
+        // update localGrid
+        for (int i = 1; i <= k; i++)
+        {
+            if (myrank == npes - 1 && i > m % k)
+                break;
+            for (int j = 0; j < m; j++)
+                localGrid[i][j] = newlocalGrid[i][j];
+        }
+
+        // MPI_Barrier(MPI_COMM_WORLD);
+    }
+
     if (myrank == 0)
     {
+        // receive final grids parts from other processes
+        char **finalGrid = alloc2D(m, m);
         for (int i = 0; i < k; i++)
-        {
             for (int j = 0; j < m; j++)
-                printf("%c", localGrid[i][j]);
-            printf("\n");
+                finalGrid[i][j] = localGrid[i + 1][j];
+
+        for (int i = k; i < m; i++)
+            MPI_Recv(finalGrid[i], m, MPI_CHAR, i / k, i % k, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+
+        // print final grid
+        for (int i = 0; i < m; i++)
+            printf("%s\n", finalGrid[i]);
+
+        free2D(finalGrid, m);
+    }
+    else
+    {
+        // send final grid parts to master
+        for (int i = 1; i <= k; i++)
+        {
+            if (myrank == npes - 1 && i > m % k)
+                break;
+            MPI_Send(localGrid[i], m, MPI_CHAR, 0, i - 1, MPI_COMM_WORLD);
         }
     }
 
